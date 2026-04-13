@@ -10,12 +10,12 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from starlette import status
-
+from app.users.route import user
 from app.demo.route import demo
 from common.responses import errorResponse
 from common.customized_log import CustomizeLogger
 from middleware.request_auth_middleware import APIKeyValidatorMiddleware
-from shared.db import mdb
+
 
 """
 code for save logs in customise path
@@ -42,7 +42,7 @@ def create_app():
     origins = ["*"]
 
     # Add Custom API key validation middleware
-    app.add_middleware(APIKeyValidatorMiddleware, mdb=mdb)
+    # app.add_middleware(APIKeyValidatorMiddleware, mdb=mdb)
 
     app.add_middleware(
         CORSMiddleware,
@@ -57,21 +57,20 @@ def create_app():
 
     #
     app.include_router(demo, tags=["DEMO"])
+    app.include_router(user,tags=["USERS"])
 
     return app
 
 
+# @app.exception_handler(RequestValidationError)
+# async def validation_exception_handler(request: Request, exc: RequestValidationError):
+#     abcd = exc.errors()
+#     error_msgs = ", ".join([f"'{i['loc'][1]}': {i['msg']}" for i in abcd])
+#
+#     logger.error(error_msgs)
+#     return errorResponse(status.HTTP_422_UNPROCESSABLE_ENTITY, error_msgs)
+
+
 app = create_app()
-
-
-@app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    abcd = exc.errors()
-    error_msgs = ", ".join([f"'{i['loc'][1]}': {i['msg']}" for i in abcd])
-
-    logger.error(error_msgs)
-    return errorResponse(status.HTTP_422_UNPROCESSABLE_ENTITY, error_msgs)
-
-
 if __name__ == "__main__":
-    uvicorn.run(app, host=os.getenv("APP_HOST", "localhost"), port=int(os.getenv("APP_PORT", "8000")))
+    uvicorn.run(app)

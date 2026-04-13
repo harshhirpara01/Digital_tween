@@ -26,7 +26,7 @@ from slowapi import Limiter
 from slowapi.util import get_ipaddr
 
 from common.responses import HEM_INTERNAL_SERVER_ERROR
-from shared.db import mdb, conn
+# from shared.db import mdb, conn
 
 limiter = Limiter(key_func=get_ipaddr)
 rate_limit = "10/minute"
