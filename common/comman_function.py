@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime, timedelta, timezone
 import json
 import os
 import re
@@ -18,12 +18,15 @@ import requests
 import sendgrid
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv
-from fastapi import Depends
-from fastapi.security import OAuth2PasswordBearer
+from fastapi import Depends, security, HTTPException
+from fastapi.security import OAuth2PasswordBearer, HTTPAuthorizationCredentials
+from jose import JWTError
+from jwt import InvalidTokenError,ExpiredSignatureError
 from nacl.secret import SecretBox
 from sendgrid import Mail
 from slowapi import Limiter
 from slowapi.util import get_ipaddr
+from starlette import status
 
 from common.responses import HEM_INTERNAL_SERVER_ERROR
 # from shared.db import mdb, conn
@@ -548,56 +551,122 @@ def resultset(cursor, type="fetchall"):
 #
 #     return data
 
+#
+# def create_token(email, uid):
+#     """
+#     function for create token
+#     """
+#     try:
+#
+#         cursor = conn.cursor()
+#         uniq_key = uuid.uuid4().hex
+#         execstring = f"exec SP_update_publickey @mode='WEB', @publickey= '{uniq_key}', @email= '{email}'"
+#         cursor.execute(execstring)
+#
+#         expire = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=10))
+#
+#         token_details = {
+#             "email": email,
+#             "public_key": uniq_key,
+#             "userid": uid,
+#             "exp": expire,
+#             "login_type": 'register'
+#         }
+#         print("=========================", token_details)
+#         access_token = jwt.encode(token_details, JWT_SECRET, algorithm='HS256')
+#         # acc = encrypt_str(access_token)
+#         return {
+#             "code": 200,
+#             "status": "success",
+#             "access_token": access_token,
+#             "token_type": "bearer",
+#         }
+#     except jwt.ExpiredSignatureError:
+#         return {
+#             "code": 401,
+#             "status": "error",
+#             "message": "JWT has expired."
+#         }
+#     except jwt.InvalidTokenError:
+#         return {
+#             "code": 400,
+#             "status": "error",
+#             "message": "Invalid token. Please check and try again."
+#         }
+#     except Exception as e:
+#         return {
+#             "code": 500,
+#             "status": "error",
+#             "message": HEM_INTERNAL_SERVER_ERROR
+#         }
+
+
+
+
+JWT_SECRET =os.getenv("JWT_SECRET")
+ALGORITHM = os.getenv("ALGORITHM")
+
 
 def create_token(email, uid):
-    """
-    function for create token
-    """
     try:
-
-        cursor = conn.cursor()
         uniq_key = uuid.uuid4().hex
-        execstring = f"exec SP_update_publickey @mode='WEB', @publickey= '{uniq_key}', @email= '{email}'"
-        cursor.execute(execstring)
-
-        expire = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=10))
-
+        now = datetime.utcnow()
+        expire = now + timedelta(minutes=30)
         token_details = {
             "email": email,
-            "public_key": uniq_key,
-            "userid": uid,
+            "id": uid,
+            "iat": now,
             "exp": expire,
-            "login_type": 'register'
+            "public_key": uniq_key,
+            "login_type": 'WEB'
         }
-        print("=========================", token_details)
-        access_token = jwt.encode(token_details, JWT_SECRET, algorithm='HS256')
-        # acc = encrypt_str(access_token)
-        return {
-            "code": 200,
-            "status": "success",
-            "access_token": access_token,
-            "token_type": "bearer",
-        }
-    except jwt.ExpiredSignatureError:
-        return {
-            "code": 401,
-            "status": "error",
-            "message": "JWT has expired."
-        }
-    except jwt.InvalidTokenError:
-        return {
-            "code": 400,
-            "status": "error",
-            "message": "Invalid token. Please check and try again."
-        }
+
+        access_token = jwt.encode(token_details, JWT_SECRET, algorithm=ALGORITHM)
+        return access_token
+
     except Exception as e:
+        return {"code": 500, "status": "error", "message": f"Exception occurred while creating token: {e}"}
+
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+):
+    token = credentials.credentials
+
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[ALGORITHM])
+
+        user_id = payload.get("id")
+        email = payload.get("email")
+
+        if user_id is None or email is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token"
+            )
         return {
-            "code": 500,
-            "status": "error",
-            "message": HEM_INTERNAL_SERVER_ERROR
+            "id": user_id,
+            "email": email,
+
         }
 
+    except ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired"
+        )
 
+    except InvalidTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token"
+        )
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token is invalid or expired"
+        )
 def send_mail(email, html, subject, preview_text=None):
     send_mail_type = str(sendmailtype)
 

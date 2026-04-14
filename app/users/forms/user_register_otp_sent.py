@@ -5,5 +5,5 @@ class userregidterotp(BaseModel):
     full_name : str
     email : str
     password : str
-    age : str
+    age : int
     proffesion : str

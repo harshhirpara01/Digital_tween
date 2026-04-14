@@ -5,25 +5,25 @@ from common.comman_function import get_current_user, resultset
 from common.responses import errorResponse, HEM_INTERNAL_SERVER_ERROR, successResponse
 from shared.db import get_db_cursor
 from app.users.route import user
-from app.users.forms.user_register_otp_sent import userregidterotp
+from app.users.forms.verify_register_otp import verifyotp
 from fastapi.encoders import jsonable_encoder
 
-@user.post("/User_Register")
+@user.post("/verify_register_otp")
 def user_register(
         # current_user=Depends(get_current_user),
-        formdata : userregidterotp,
+        formdata : verifyotp,
         cursor=Depends(get_db_cursor)
 ):
     try:
         cursor.execute("CALL register(%s, %s,%s,%s,%s,%s,%s,%s,%s,%s)", (
-            'before-insert',
-            formdata.full_name,
+            'verify_register_otp',
+            '',
             formdata.email,
-            formdata.password,
-            formdata.age,
-            formdata.proffesion,
-            '',  # p_otp
+            '',
             0,
+            '',
+            formdata.otp,
+            0,# p_otp
             '',  # msg
             ''  # msgcode
         ))
@@ -33,9 +33,9 @@ def user_register(
         print(data)
 
         dataa = {
-            "otp"  : data[0].get('p_otp')
+            "otp"  : data[0].get('msg')
         }
-        return successResponse(status.HTTP_200_OK,data[0].get('msg'),jsonable_encoder(dataa))
+        return successResponse(status.HTTP_200_OK,data[0].get('msgcode'),jsonable_encoder(dataa))
 
     except Exception as e:
         print(f"Error: {str(e)}")

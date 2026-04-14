@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette import status
 from app.users.route import user
 from app.demo.route import demo
+from app.behavior_logs.route import behavior_log
 from common.responses import errorResponse
 from common.customized_log import CustomizeLogger
 from middleware.request_auth_middleware import APIKeyValidatorMiddleware
@@ -33,7 +34,7 @@ def create_app():
     print("debug --> ", debug)
 
     app = FastAPI(
-        title="Omnes | Project",
+        title="digi tween | Project",
         docs_url="/docs" if debug else None,
         redoc_url="/redoc" if debug else None,
         openapi_url="/openapi.json" if debug else None,
@@ -58,6 +59,7 @@ def create_app():
     #
     app.include_router(demo, tags=["DEMO"])
     app.include_router(user,tags=["USERS"])
+    app.include_router(behavior_log,tags=["BEHAVIOR_LOGS"])
 
     return app
 
