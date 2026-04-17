@@ -13,6 +13,7 @@ from starlette import status
 from app.users.route import user
 from app.demo.route import demo
 from app.behavior_logs.route import behavior_log
+from app.model_train.route import model_train
 from common.responses import errorResponse
 from common.customized_log import CustomizeLogger
 from middleware.request_auth_middleware import APIKeyValidatorMiddleware
@@ -60,6 +61,7 @@ def create_app():
     app.include_router(demo, tags=["DEMO"])
     app.include_router(user,tags=["USERS"])
     app.include_router(behavior_log,tags=["BEHAVIOR_LOGS"])
+    app.include_router(model_train,tags=['Model_Train'])
 
     return app
 

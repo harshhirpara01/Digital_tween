@@ -794,7 +794,7 @@ async def authenticate_user_check_token(email):
         return []
 
 
-async def get_current_user(access_token: str = Depends(oauth2_scheme)):
+async def   get_current_user(access_token: str = Depends(oauth2_scheme)):
     """
     function for check token valid or not
     """
@@ -1028,3 +1028,56 @@ def err_send_telegram(msg):
     }
     response = requests.post(url, json=data)
     return response.json()  # Optional: Return response for debuggin
+
+
+import pandas as pd
+from sklearn.ensemble import RandomForestClassifier
+import joblib
+from sklearn.preprocessing import LabelEncoder
+
+def train_model(data, user_id):
+    df = pd.DataFrame(data)
+
+    # Drop unwanted columns
+    if "log_date" in df.columns:
+        df = df.drop(["log_date"], axis=1)
+
+    if "created_at" in df.columns:
+        df = df.drop(["created_at"], axis=1)
+
+    if "user_id" in df.columns:
+        df = df.drop(["user_id"], axis=1)
+
+    if "log_id" in df.columns:
+        df = df.drop(["log_id"], axis=1)
+
+    if "is_deleted" in df.columns:
+        df = df.drop(["is_deleted"], axis=1)
+    # Encoding
+    from sklearn.preprocessing import LabelEncoder
+    activity_encoder = LabelEncoder()
+    mood_encoder = LabelEncoder()
+
+    df["activity"] = activity_encoder.fit_transform(df["activity"])
+    df["mood"] = mood_encoder.fit_transform(df["mood"])
+
+    # Split
+    y = df["activity"]
+    X = df.drop("activity", axis=1)
+
+    # 🔥 YAHAN ADD KAR
+    print("Training Columns:", X.columns.tolist())
+
+    # Train
+    model = RandomForestClassifier()
+    model.fit(X, y)
+
+    # Save
+    import os, joblib
+    os.makedirs("app/ml/models", exist_ok=True)
+
+    joblib.dump(model, f"app/ml/models/model_{user_id}.pkl")
+    joblib.dump(activity_encoder, f"app/ml/models/activity_encoder_{user_id}.pkl")
+    joblib.dump(mood_encoder, f"app/ml/models/mood_encoder_{user_id}.pkl")
+
+    return True
