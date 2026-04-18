@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block nav %}
+<a href="/register" class="dt-nav-link">Register</a>
+{% endblock %}
+{% block content %}
+<section class="dt-panel dt-panel-narrow">
+  <h1 class="dt-h1">Welcome back</h1>
+  <p class="dt-sub">Sign in to meet Digi Buddy on your home dashboard.</p>
+  <form id="loginForm" class="dt-form">
+    <label class="dt-label">Email
+      <input type="email" name="email" class="dt-input" required autocomplete="username" />
+    </label>
+    <label class="dt-label">Password
+      <input type="password" name="password" class="dt-input" required autocomplete="current-password" />
+    </label>
+    <button type="submit" class="dt-btn dt-btn-primary">Login</button>
+    <p class="dt-muted">New here? <a href="/register">Create an account</a></p>
+  </form>
+</section>
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const body = { email: fd.get('email'), password: fd.get('password') };
+  const res = await fetch('/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const json = await res.json();
+  if (json.status === 'success' && json.data && json.data.token) {
+    DT.setToken(json.data.token);
+    DT.toast('Logged in — redirecting…', 'ok');
+    setTimeout(() => { window.location.href = '/home'; }, 400);
+  } else {
+    DT.toast(json.message || 'Login failed', 'err');
+  }
+});
+</script>
+{% endblock %}

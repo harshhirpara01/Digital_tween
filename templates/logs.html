@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block nav %}
+<a href="/home" class="dt-nav-link">Home</a>
+<a href="/logs" class="dt-nav-link">Logs</a>
+<a href="/account" class="dt-nav-link">Account</a>
+<button type="button" class="dt-nav-link dt-nav-btn" id="logoutBtn">Logout</button>
+{% endblock %}
+{% block content %}
+<section class="dt-split">
+  <div class="dt-panel">
+    <h1 class="dt-h1">Add behavior log</h1>
+    <form id="logForm" class="dt-form dt-form-grid">
+      <label class="dt-label">Log date
+        <input type="date" name="log_date" class="dt-input" required />
+      </label>
+      <label class="dt-label">Hour (0–23)
+        <input type="number" name="log_hour" class="dt-input" min="0" max="23" required />
+      </label>
+      <label class="dt-label">Activity
+        <input type="text" name="activity" class="dt-input" required placeholder="e.g. study" />
+      </label>
+      <label class="dt-label">Mood
+        <input type="text" name="mood" class="dt-input" required placeholder="e.g. calm" />
+      </label>
+      <label class="dt-label">Energy (1–10)
+        <input type="number" name="energy_level" class="dt-input" min="1" max="10" required />
+      </label>
+      <label class="dt-label">Study hours
+        <input type="number" name="study_hour" class="dt-input" min="0" step="0.25" required />
+      </label>
+      <label class="dt-label">Work hours
+        <input type="number" name="work_hour" class="dt-input" min="0" step="0.25" required />
+      </label>
+      <label class="dt-label">Mobile usage (h)
+        <input type="number" name="mobile_usage_hour" class="dt-input" min="0" step="0.25" required />
+      </label>
+      <label class="dt-label">Sleep hours
+        <input type="number" name="sleep_hours" class="dt-input" min="0" step="0.25" required />
+      </label>
+      <label class="dt-label">Social (minutes)
+        <input type="number" name="social_intreaction_minutes" class="dt-input" min="0" required />
+      </label>
+      <label class="dt-label dt-check">
+        <input type="checkbox" name="is_weekend" />
+        Weekend
+      </label>
+      <label class="dt-label">Productivity score (1–10)
+        <input type="number" name="productivy_score" class="dt-input" min="1" max="10" step="0.1" required />
+      </label>
+      <button type="submit" class="dt-btn dt-btn-primary dt-span-2">Save log</button>
+    </form>
+  </div>
+  <div class="dt-panel dt-panel-scroll">
+    <h2 class="dt-h2">Recent logs</h2>
+    <div id="logTableWrap" class="dt-table-wrap"></div>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  if (!DT.requireAuth()) return;
+
+  document.getElementById('logoutBtn').addEventListener('click', () => {
+    DT.clearToken();
+    window.location.href = '/login';
+  });
+
+  const today = new Date().toISOString().slice(0, 10);
+  document.querySelector('input[name="log_date"]').value = today;
+  document.querySelector('input[name="log_hour"]').value = String(new Date().getHours());
+
+  function renderTable(logs) {
+    const wrap = document.getElementById('logTableWrap');
+    if (!logs.length) {
+      wrap.innerHTML = '<p class="dt-muted">No logs yet.</p>';
+      return;
+    }
+    const rows = logs.slice().reverse().slice(0, 50).map((r) => `
+      <tr>
+        <td>${r.log_date || ''}</td>
+        <td>${r.activity || ''}</td>
+        <td>${r.mood || ''}</td>
+        <td>${r.productivy_score ?? ''}</td>
+      </tr>`).join('');
+    wrap.innerHTML = `<table class="dt-table"><thead><tr><th>Date</th><th>Activity</th><th>Mood</th><th>Prod.</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+
+  async function refresh() {
+    const res = await fetch('/Behavior-log-get', { headers: DT.authHeaders() });
+    const json = await res.json();
+    if (json.status === 'success') {
+      const data = Array.isArray(json.data) ? json.data : (json.data && json.data.data) || [];
+      renderTable(data);
+    }
+  }
+
+  document.getElementById('logForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const body = {
+      log_date: fd.get('log_date'),
+      log_hour: parseInt(fd.get('log_hour'), 10),
+      activity: fd.get('activity'),
+      mood: fd.get('mood'),
+      energy_level: parseInt(fd.get('energy_level'), 10),
+      study_hour: parseFloat(fd.get('study_hour')),
+      work_hour: parseFloat(fd.get('work_hour')),
+      mobile_usage_hour: parseFloat(fd.get('mobile_usage_hour')),
+      sleep_hours: parseFloat(fd.get('sleep_hours')),
+      social_intreaction_minutes: parseInt(fd.get('social_intreaction_minutes'), 10),
+      is_weekend: fd.get('is_weekend') === 'on',
+      productivy_score: parseFloat(fd.get('productivy_score')),
+    };
+    const res = await fetch('/Behavior-log-add', {
+      method: 'POST',
+      headers: DT.authHeaders(),
+      body: JSON.stringify(body),
+    });
+    const json = await res.json();
+    if (json.status === 'success') {
+      DT.toast('Log saved', 'ok');
+      e.target.reset();
+      document.querySelector('input[name="log_date"]').value = today;
+      document.querySelector('input[name="log_hour"]').value = String(new Date().getHours());
+      refresh();
+    } else {
+      DT.toast(json.message || 'Save failed', 'err');
+    }
+  });
+
+  refresh();
+})();
+</script>
+{% endblock %}

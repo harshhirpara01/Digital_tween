@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+{% block nav %}
+<a href="/home" class="dt-nav-link">Home</a>
+<a href="/logs" class="dt-nav-link">Logs</a>
+<a href="/account" class="dt-nav-link">Account</a>
+<button type="button" class="dt-nav-link dt-nav-btn" id="logoutBtn">Logout</button>
+{% endblock %}
+{% block content %}
+<div class="dt-home-hero">
+  <p class="dt-hero-kicker"><span class="dt-pulse-dot"></span> Digi Teen neural link</p>
+  <h1 class="dt-hero-title">Behavior intelligence <span class="dt-hero-accent">live</span></h1>
+  <p class="dt-hero-sub">Your companion reads recent logs, spots patterns, and nudges you toward balance — not judgment, just signal.</p>
+</div>
+
+<section class="dt-home-layout">
+  <aside class="dt-side dt-side-rich">
+    <div class="dt-side-head">
+      <h2 class="dt-h2">Session telemetry</h2>
+      <span class="dt-chip" id="linkChip">SYNC</span>
+    </div>
+    <div id="statCards" class="dt-stat-grid">
+      <div class="dt-stat"><span class="dt-stat-label">Log entries</span><span class="dt-stat-val" id="statCount">—</span></div>
+      <div class="dt-stat"><span class="dt-stat-label">Avg productivity</span><div class="dt-stat-row"><span class="dt-stat-val" id="statProd">—</span><span class="dt-stat-unit">/10</span></div></div>
+      <div class="dt-stat"><span class="dt-stat-label">Avg sleep</span><div class="dt-stat-row"><span class="dt-stat-val" id="statSleep">—</span><span class="dt-stat-unit">h</span></div></div>
+      <div class="dt-stat"><span class="dt-stat-label">Avg mobile use</span><div class="dt-stat-row"><span class="dt-stat-val" id="statMobile">—</span><span class="dt-stat-unit">h</span></div></div>
+    </div>
+    <div class="dt-mini-panel">
+      <p class="dt-mini-label">Signal quality</p>
+      <div class="dt-meter"><span class="dt-meter-fill" id="signalMeter"></span></div>
+      <p class="dt-mini-hint" id="signalHint">More logs sharpen predictions.</p>
+    </div>
+    <div class="dt-ticker" aria-hidden="true">
+      <span class="dt-ticker-item">NEURAL · <span id="tickA">0.00</span></span>
+      <span class="dt-ticker-item">DRIFT · <span id="tickB">0.00</span></span>
+      <span class="dt-ticker-item">PULSE · <span id="tickC">0.00</span></span>
+    </div>
+    <a href="/logs" class="dt-btn dt-btn-secondary dt-btn-block">Open behavior logs</a>
+    <button type="button" class="dt-btn dt-btn-ghost dt-btn-block" id="trainBtn">Train ML model</button>
+    <p class="dt-muted dt-small">Train after you have enough entries — unlocks the predict API for your profile.</p>
+  </aside>
+
+  <div class="dt-buddy-stage">
+    <div class="dt-orbit" aria-hidden="true"></div>
+    <div class="dt-buddy-wrap">
+      <div class="buddy" id="buddy" aria-hidden="true">
+        <div class="buddy-shadow"></div>
+        <div class="buddy-antenna">
+          <span class="buddy-antenna-ball"></span>
+        </div>
+        <div class="buddy-neck"></div>
+        <div class="buddy-head">
+          <div class="buddy-face">
+            <div class="buddy-eye left"><span class="buddy-pupil"></span></div>
+            <div class="buddy-eye right"><span class="buddy-pupil"></span></div>
+            <div class="buddy-cheek left"></div>
+            <div class="buddy-cheek right"></div>
+            <div class="buddy-mouth" id="buddyMouth">
+              <span class="buddy-mouth-inner"></span>
+            </div>
+          </div>
+        </div>
+        <div class="buddy-torso">
+          <div class="buddy-chest">
+            <span class="buddy-core"></span>
+          </div>
+          <div class="buddy-arm left"></div>
+          <div class="buddy-arm right"></div>
+        </div>
+        <div class="buddy-base"></div>
+      </div>
+      <div class="dt-speech" id="speechBubble">
+        <div class="dt-speech-corners"></div>
+        <div class="dt-speech-tail"></div>
+        <p class="dt-speech-title">Digi Buddy · Digi Teen AI</p>
+        <p class="dt-speech-meta" id="buddyMeta">Initializing context…</p>
+        <div class="dt-speech-body" id="buddyText">Calibrating your companion…</div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/buddy.js"></script>
+<script>
+(function () {
+  if (!DT.requireAuth()) return;
+
+  document.getElementById('logoutBtn').addEventListener('click', () => {
+    DT.clearToken();
+    window.location.href = '/login';
+  });
+
+  const uid = DT.getUserId();
+  document.getElementById('trainBtn').addEventListener('click', async () => {
+    if (!uid) {
+      DT.toast('Please log in again', 'err');
+      return;
+    }
+    const res = await fetch('/ml/train/' + uid, {
+      method: 'POST',
+      headers: DT.authHeaders(),
+    });
+    const json = await res.json();
+    if (json.status === 'success') {
+      DT.toast('Model trained', 'ok');
+    } else {
+      DT.toast(json.message || 'Train failed', 'err');
+    }
+  });
+
+  function num(x, d) {
+    if (x == null || Number.isNaN(x)) return null;
+    return Math.round(x * Math.pow(10, d)) / Math.pow(10, d);
+  }
+
+  function normalizeLogs(raw) {
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw;
+    if (raw.data && Array.isArray(raw.data)) return raw.data;
+    return [];
+  }
+
+  function buildLines(logs) {
+    if (!logs.length) {
+      return [
+        "Hey — I am **Digi Buddy**, your **Digi Teen** co-pilot on Digital Tween.",
+        "I do not see any behavior logs yet. Add your first entry on the **Logs** page — then I can read mood, sleep, and focus patterns and talk to you like a real wing-robot.",
+      ];
+    }
+    const last = logs[logs.length - 1];
+    const slice = logs.slice(-10);
+    const avg = (key) => {
+      const vals = slice.map((r) => parseFloat(r[key])).filter((n) => !Number.isNaN(n));
+      if (!vals.length) return null;
+      return vals.reduce((a, b) => a + b, 0) / vals.length;
+    };
+    const avgProd = avg('productivy_score');
+    const avgSleep = avg('sleep_hours');
+    const avgMobile = avg('mobile_usage_hour');
+    const lines = [];
+    lines.push("Here is what your **recent logs** suggest — straight, friendly, no drama:");
+    lines.push(`Latest entry: mood **${last.mood || '?'}**, activity **${last.activity || '?'}**, productivity **${last.productivy_score ?? '?'}** out of 10.`);
+    if (avgProd != null && avgProd < 5) {
+      lines.push("Your **average productivity** dipped — try one **25-minute** focus block, then a five-minute reset.");
+    } else if (avgProd != null && avgProd >= 7) {
+      lines.push("**Productivity** is strong — protect that rhythm with consistent sleep and breaks.");
+    }
+    if (avgSleep != null && avgSleep < 6) {
+      lines.push("**Sleep** looks short on average — wind down a little earlier tonight; even thirty minutes helps recovery.");
+    }
+    if (avgMobile != null && avgMobile > 4) {
+      lines.push("**Screen time** is trending high — schedule a calm hour without scrolling; your logs will thank you.");
+    }
+    if (avgProd != null && avgSleep != null && avgProd >= 6 && avgSleep >= 7) {
+      lines.push("Nice — **focus and rest** look balanced. That is peak Digi Teen energy.");
+    }
+    lines.push("Keep logging — I get sharper every entry. When you are ready, hit **Train ML** so I can forecast your next activity.");
+    return lines;
+  }
+
+  function setTelemetry(logs) {
+    const n = logs.length;
+    const pct = Math.min(100, Math.round((n / 14) * 100));
+    document.getElementById('signalMeter').style.width = pct + '%';
+    document.getElementById('signalHint').textContent = n < 3
+      ? 'Add a few more logs — signal is still thin.'
+      : n < 10
+        ? 'Solid sample — patterns are stabilizing.'
+        : 'Rich history — great for training.';
+    document.getElementById('buddyMeta').textContent = n
+      ? `Context: ${n} entr${n === 1 ? 'y' : 'ies'} · last mood ${logs[logs.length - 1].mood || '—'}`
+      : 'Context: empty · waiting for your first log';
+    document.getElementById('linkChip').textContent = n ? 'LINK OK' : 'STANDBY';
+  }
+
+  function tickDecor() {
+    document.getElementById('tickA').textContent = (0.82 + Math.random() * 0.12).toFixed(2);
+    document.getElementById('tickB').textContent = (0.05 + Math.random() * 0.08).toFixed(2);
+    document.getElementById('tickC').textContent = (0.91 + Math.random() * 0.06).toFixed(2);
+  }
+  setInterval(tickDecor, 2200);
+  tickDecor();
+
+  async function load() {
+    const res = await fetch('/Behavior-log-get', { headers: DT.authHeaders() });
+    const json = await res.json();
+    if (json.status !== 'success') {
+      document.getElementById('buddyText').textContent = json.message || 'Could not load your logs.';
+      document.getElementById('buddyMeta').textContent = 'Context: error';
+      return;
+    }
+    const logs = normalizeLogs(json.data);
+    document.getElementById('statCount').textContent = String(logs.length);
+
+    const lastN = logs.slice(-10);
+    const avgProd = lastN.length
+      ? lastN.reduce((s, r) => s + (parseFloat(r.productivy_score) || 0), 0) / lastN.length
+      : null;
+    const avgSleep = lastN.length
+      ? lastN.reduce((s, r) => s + (parseFloat(r.sleep_hours) || 0), 0) / lastN.length
+      : null;
+    const avgMobile = lastN.length
+      ? lastN.reduce((s, r) => s + (parseFloat(r.mobile_usage_hour) || 0), 0) / lastN.length
+      : null;
+    document.getElementById('statProd').textContent = avgProd != null ? num(avgProd, 1) : '—';
+    document.getElementById('statSleep').textContent = avgSleep != null ? num(avgSleep, 1) : '—';
+    document.getElementById('statMobile').textContent = avgMobile != null ? num(avgMobile, 1) : '—';
+
+    setTelemetry(logs);
+    const lines = buildLines(logs);
+    Buddy.say(lines);
+  }
+
+  load();
+})();
+</script>
+{% endblock %}

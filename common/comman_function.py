@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+import html
 import json
 import os
 import re
@@ -18,8 +19,8 @@ import requests
 import sendgrid
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv
-from fastapi import Depends, security, HTTPException
-from fastapi.security import OAuth2PasswordBearer, HTTPAuthorizationCredentials
+from fastapi import Depends, HTTPException
+from fastapi.security import OAuth2PasswordBearer, HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 from jwt import InvalidTokenError,ExpiredSignatureError
 from nacl.secret import SecretBox
@@ -606,6 +607,8 @@ def resultset(cursor, type="fetchall"):
 JWT_SECRET =os.getenv("JWT_SECRET")
 ALGORITHM = os.getenv("ALGORITHM")
 
+security = HTTPBearer()
+
 
 def create_token(email, uid):
     try:
@@ -667,8 +670,62 @@ def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token is invalid or expired"
         )
+def _resolve_send_mail_type():
+    t = (sendmailtype or "").strip().lower()
+    if t in ("", "none", "null"):
+        if os.environ.get("MAIL_USER") and os.environ.get("EMAIL_PASS"):
+            return "smtp"
+        return t or "none"
+    return t
+
+
+def _send_smtp_html(to_email: str, html: str, subject: str) -> bool:
+    sender_email = (os.environ.get("MAIL_USER") or os.environ.get("SMTP_USERNAME") or "").strip().strip("'\"")
+    password = (os.environ.get("EMAIL_PASS") or os.environ.get("SMTP_PASSWORD") or "").strip().strip("'\"")
+    if not sender_email or not password:
+        print("SMTP: set MAIL_USER and EMAIL_PASS (or SMTP_USERNAME / SMTP_PASSWORD) in .env")
+        return False
+    message = MIMEMultipart("alternative")
+    message["Subject"] = str(subject)
+    message["From"] = sender_email
+    message["To"] = to_email
+    message.attach(MIMEText(html, "html"))
+    context = ssl.create_default_context()
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
+            server.login(sender_email, password)
+            server.sendmail(sender_email, to_email, message.as_string())
+        return True
+    except Exception as e:
+        print(f"SMTP send failed: {e}")
+        traceback.print_exc()
+        return False
+
+
+def send_registration_otp_mail(to_email: str, otp_code: str, display_name: str = "") -> bool:
+    name = html.escape((display_name or "").strip() or "there")
+    safe_otp = html.escape(str(otp_code).strip())
+    subject = "Digital Tween — your verification code"
+    body = f"""<!DOCTYPE html>
+<html><body style="margin:0;background:#0a0e17;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#0a0e17;padding:32px 16px;font-family:Segoe UI,Roboto,sans-serif;">
+<tr><td align="center">
+<table width="100%" style="max-width:480px;background:linear-gradient(145deg,#121a2a,#0a0e17);border:1px solid rgba(94,234,255,0.25);border-radius:16px;padding:28px;">
+<tr><td>
+<p style="margin:0 0 8px;font-size:11px;letter-spacing:0.25em;color:#5eeaff;text-transform:uppercase;">Digital Tween</p>
+<h1 style="margin:0 0 16px;font-size:20px;color:#e8f0ff;">Verify your email</h1>
+<p style="margin:0 0 12px;color:#8b9bb8;font-size:15px;line-height:1.5;">Hi {name},</p>
+<p style="margin:0 0 16px;color:#8b9bb8;font-size:15px;line-height:1.5;">Use this one-time code to finish signing up:</p>
+<p style="margin:0 0 20px;font-size:32px;font-weight:700;letter-spacing:8px;color:#5eeaff;font-family:Consolas,monospace;">{safe_otp}</p>
+<p style="margin:0;color:#5c6a80;font-size:13px;line-height:1.5;">If you did not request this, you can ignore this message.</p>
+</td></tr></table>
+</td></tr></table>
+</body></html>"""
+    return _send_smtp_html(to_email, body, subject)
+
+
 def send_mail(email, html, subject, preview_text=None):
-    send_mail_type = str(sendmailtype)
+    send_mail_type = _resolve_send_mail_type()
 
     if send_mail_type == 'sendgrid':
         """
@@ -688,24 +745,7 @@ def send_mail(email, html, subject, preview_text=None):
             pass
 
     elif send_mail_type == 'smtp':
-        sender_email = "sarvopari16@gmail.com"
-        password = "okhp klyn kugv mmvi"
-        message = MIMEMultipart("alternative")
-        message["Subject"] = str(subject)
-        message["From"] = sender_email
-        message["To"] = email
-        part1 = MIMEText(html, "html")
-        message.attach(part1)
-
-        context = ssl.create_default_context()
-        try:
-            with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
-                server.login(sender_email, password)
-                server.sendmail(
-                    sender_email, email, message.as_string()
-                )
-        except Exception as e:
-            pass
+        _send_smtp_html(email, html, subject)
 
     elif send_mail_type == 'mailchimp':
         try:
@@ -775,89 +815,6 @@ def check_api_key_2(apikey, apidomain):
             "message": "Something Went Wrong Please try Again",
             "status": "fail",
             "code": 400
-        }
-
-
-async def authenticate_user_check_token(email):
-    """
-        function for get private_key  and id for token
-    """
-    try:
-        cursor = conn.cursor()
-        execstring = f"exec SP_Login @mode='GETTOKENINFO',@loginid='{email}',@password='',@loginip='',@loginbrowser='',@loglocation='',@userid=0"
-        cursor.execute(execstring)
-        data = resultset(cursor)
-        cursor.close()
-
-        return data[0]
-    except Exception as e:
-        return []
-
-
-async def   get_current_user(access_token: str = Depends(oauth2_scheme)):
-    """
-    function for check token valid or not
-    """
-    print("access_token", access_token)
-    try:
-        payload = jwt.decode(str(access_token), JWT_SECRET, algorithms=['HS256'])
-        expiration_time = datetime.datetime.fromtimestamp(payload.get('exp'), datetime.timezone.utc)
-        current_time = datetime.datetime.now(datetime.timezone.utc)
-        if current_time >= expiration_time:
-            return {
-                "code": 401,
-                "message": "Token expired"
-            }
-        else:
-            print("Login Process Start Token Is Valid")
-            data = await authenticate_user_check_token(payload.get('email'))
-            print("------------------------------", data)
-
-            if str(payload.get("public_key")) == str(data['publickey']):
-                return {
-                    "status": 200,
-                    "userid": payload.get('userid'),
-                    "email": payload.get('email')
-                }
-            else:
-                return {
-                    "code": 401,
-                    "message": "Token expired"
-                }
-
-    except IndexError as d:
-        traceback.print_exc()
-        return {
-            "code": 401,
-            "message": "Token expired"
-        }
-
-    except KeyError as ek:
-        traceback.print_exc()
-        return {
-            "code": 401,
-            "message": "Something Went wrong please Try again."
-        }
-
-    except jwt.exceptions.ExpiredSignatureError as es:
-        traceback.print_exc()
-        return {
-            "code": 401,
-            "message": "Token expired"
-        }
-
-    except jwt.exceptions.InvalidSignatureError as s:
-        traceback.print_exc()
-        return {
-            "code": 401,
-            "message": "Invalid Token"
-        }
-
-    except jwt.DecodeError:
-        traceback.print_exc()
-        return {
-            "code": 401,
-            "message": "Token expired"
         }
 
 
@@ -1070,3 +1027,34 @@ def train_model(data, user_id):
     joblib.dump(columns, f"app/ml/models/columns_{user_id}.pkl")
 
     return True
+
+    from dotenv import load_dotenv
+
+load_dotenv()
+
+def send_otp_email(to_email, otp):
+    try:
+        sender_email = os.getenv("EMAIL_USER")
+        sender_pass = os.getenv("EMAIL_PASS")
+
+        subject = "Your OTP Code"
+        body = f"Your OTP is: {otp}"
+
+        msg = MIMEText(body)
+        msg["Subject"] = subject
+        msg["From"] = sender_email
+        msg["To"] = to_email
+
+        # 🔥 SMTP connection
+        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server.starttls()
+        server.login(sender_email, sender_pass)
+
+        server.sendmail(sender_email, to_email, msg.as_string())
+        server.quit()
+
+        return True
+
+    except Exception as e:
+        print("Email Error:", e)
+        return False

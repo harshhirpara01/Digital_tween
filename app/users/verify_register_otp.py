@@ -1,52 +1,57 @@
 import traceback
+
 from fastapi import Depends
+from sqlalchemy.orm import Session
 from starlette import status
-from common.comman_function import get_current_user, resultset
-from common.responses import errorResponse, HEM_INTERNAL_SERVER_ERROR, successResponse
-from shared.db import get_db_cursor
-from app.users.route import user
+
 from app.users.forms.verify_register_otp import verifyotp
+from app.users.route import user
+from common.responses import errorResponse, HEM_INTERNAL_SERVER_ERROR, successResponse
 from fastapi.encoders import jsonable_encoder
+from shared.db import get_db
+from shared.models import User
+
 
 @user.post("/verify_register_otp")
-def user_register(
-        formdata : verifyotp,
-        current_user=Depends(get_current_user),
-        
-        cursor=Depends(get_db_cursor)
+def verify_register_otp(
+    formdata: verifyotp,
+    db: Session = Depends(get_db),
 ):
     try:
-        cursor.execute("CALL register(%s, %s,%s,%s,%s,%s,%s,%s,%s,%s)", (
-            'verify_register_otp',
-            '',
-            formdata.email,
-            '',
-            0,
-            '',
-            formdata.otp,
-            0,# p_otp
-            '',  # msg
-            ''  # msgcode
-        ))
+        email = formdata.email.strip().lower()
+        user_row = db.query(User).filter(User.email == email).first()
 
+        if not user_row:
+            return errorResponse(
+                status.HTTP_400_BAD_REQUEST,
+                "No registration found for this email. Register again.",
+            )
 
-        data = resultset(cursor)
-        print(data)
+        if user_row.is_verified:
+            return errorResponse(
+                status.HTTP_400_BAD_REQUEST,
+                "This account is already verified. You can log in.",
+            )
 
-        dataa = {
-            "otp"  : data[0].get('msg')
-        }
-        return successResponse(status.HTTP_200_OK,data[0].get('msgcode'),jsonable_encoder(dataa))
+        if not user_row.otp_code or str(user_row.otp_code).strip() != str(formdata.otp).strip():
+            return errorResponse(
+                status.HTTP_400_BAD_REQUEST,
+                "Invalid or expired verification code.",
+            )
+
+        user_row.is_verified = True
+        user_row.otp_code = None
+        db.add(user_row)
+        db.commit()
+
+        return successResponse(
+            status.HTTP_200_OK,
+            "Email verified successfully. You can log in now.",
+            jsonable_encoder({"status": "success"}),
+        )
 
     except Exception as e:
         print(f"Error: {str(e)}")
         traceback.print_exc()
+        db.rollback()
         return errorResponse(status.HTTP_500_INTERNAL_SERVER_ERROR, HEM_INTERNAL_SERVER_ERROR)
-
-
-
-
-
-
-
-

@@ -1,56 +1,51 @@
 import traceback
+
 from fastapi import Depends
+from sqlalchemy.orm import Session
 from starlette import status
-from common.comman_function import get_current_user, resultset, create_token
-from common.responses import errorResponse, HEM_INTERNAL_SERVER_ERROR, successResponse
-from shared.db import get_db_cursor
-from app.users.route import user
+
 from app.users.forms.login import loginform
+from app.users.route import user
+from common.comman_function import create_token
+from common.responses import errorResponse, HEM_INTERNAL_SERVER_ERROR, successResponse
 from fastapi.encoders import jsonable_encoder
+from shared.db import get_db
+from shared.models import User
+from shared.password_utils import verify_password
+
 
 @user.post("/login")
 def login(
-            formdata : loginform,
-        current_user=Depends(get_current_user),
-
-        cursor=Depends(get_db_cursor)
+    formdata: loginform,
+    db: Session = Depends(get_db),
 ):
     try:
-        cursor.execute("CALL register(%s, %s,%s,%s,%s,%s,%s,%s,%s,%s)", (
-            'login',
-            '',
-            formdata.email,
-            formdata.password,
-            0,
-            '',
-            '',  # p_otp
-            0,
-            '',  # msg
-            ''  # msgcode
-        ))
+        email = formdata.email.strip().lower()
+        user_row = db.query(User).filter(User.email == email).first()
 
+        if not user_row or not verify_password(formdata.password, user_row.password_hash):
+            return errorResponse(
+                status.HTTP_400_BAD_REQUEST,
+                "Invalid email or password.",
+            )
 
-        data = resultset(cursor)
-        print(data)
-        if data[0].get('msgcode') == 'success':
-            token = create_token(email= formdata.email,uid=data[0].get('p_uid'))
-            dataa = {
-                "token":token
-            }
+        if not user_row.is_verified:
+            return errorResponse(
+                status.HTTP_400_BAD_REQUEST,
+                "Please verify your email with the OTP we sent before logging in.",
+            )
 
-            return successResponse(status.HTTP_200_OK,data[0].get('msg'),jsonable_encoder(dataa))
+        token = create_token(email=user_row.email, uid=user_row.id)
+        if isinstance(token, dict) and token.get("status") == "error":
+            return errorResponse(status.HTTP_500_INTERNAL_SERVER_ERROR, str(token.get("message")))
 
-        return errorResponse(status.HTTP_400_BAD_REQUEST,data[0].get('msg'))
+        return successResponse(
+            status.HTTP_200_OK,
+            "Login successful.",
+            jsonable_encoder({"token": token}),
+        )
 
     except Exception as e:
         print(f"Error: {str(e)}")
         traceback.print_exc()
         return errorResponse(status.HTTP_500_INTERNAL_SERVER_ERROR, HEM_INTERNAL_SERVER_ERROR)
-
-
-
-
-
-
-
-

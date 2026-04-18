@@ -12,19 +12,25 @@ import pandas as pd
 
 
 @model_train.post("/ml/predict/activity")
-def predict_activity(data: dict):
+def predict_activity(
+    data: dict,
+    current_user=Depends(get_current_user),
+):
     try:
-        current_user=Depends(get_current_user),
-
         user_id = current_user["id"]
+        base = f"app/ml/models/model_{user_id}.pkl"
 
-        # 🔥 Load files
+        if not os.path.isfile(base):
+            return errorResponse(
+                status.HTTP_400_BAD_REQUEST,
+                "Train a model on your logs first (Train ML on the home page).",
+            )
+
         model = joblib.load(f"app/ml/models/model_{user_id}.pkl")
         activity_encoder = joblib.load(f"app/ml/models/activity_encoder_{user_id}.pkl")
         mood_encoder = joblib.load(f"app/ml/models/mood_encoder_{user_id}.pkl")
         columns = joblib.load(f"app/ml/models/columns_{user_id}.pkl")
 
-        # 🔥 Encode input
         input_dict = {
             "log_hour": data["log_hour"],
             "mood": mood_encoder.transform([data["mood"]])[0],
@@ -35,38 +41,43 @@ def predict_activity(data: dict):
             "sleep_hours": data["sleep_hours"],
             "social_interaction_minutes": data["social_interaction_minutes"],
             "is_weekend": data["is_weekend"],
-            "productivity_score": data["productivity_score"]
+            "productivity_score": data["productivity_score"],
         }
 
         df = pd.DataFrame([input_dict])
         df = df.reindex(columns=columns, fill_value=0)
 
-        # 🔥 Prediction
         pred = model.predict(df)[0]
         predicted_activity = activity_encoder.inverse_transform([pred])[0]
 
-        # 🔥 Confidence
         proba = model.predict_proba(df)
         confidence = round(max(proba[0]) * 100, 2)
 
-        # 🔥 Suggestion (simple logic)
         if data["mobile_usage_hours"] > 4:
-            suggestion = "Mobile kam use kar"
+            suggestion = "Screen time looks high — try a shorter phone block this evening."
         elif data["productivity_score"] < 5:
-            suggestion = "Focus improve kar"
+            suggestion = "Focus is a bit low — try one 25-minute deep-work sprint."
         else:
-            suggestion = "Tu sahi track pe hai"
+            suggestion = "You are on a solid track — keep this rhythm going."
 
         return successResponse(
             status.HTTP_200_OK,
             "success",
-            {
-                "predicted_activity": predicted_activity,
-                "confidence": f"{confidence}%",
-                "suggestion": suggestion
-            }
+            jsonable_encoder(
+                {
+                    "predicted_activity": str(predicted_activity),
+                    "confidence": f"{confidence}%",
+                    "suggestion": suggestion,
+                }
+            ),
         )
 
+    except KeyError as ke:
+        return errorResponse(
+            status.HTTP_400_BAD_REQUEST,
+            f"Missing field: {ke}",
+        )
     except Exception as e:
         print(e)
-        return errorResponse(status.HTTP_500_INTERNAL_SERVER_ERROR, "Error")
+        traceback.print_exc()
+        return errorResponse(status.HTTP_500_INTERNAL_SERVER_ERROR, HEM_INTERNAL_SERVER_ERROR)

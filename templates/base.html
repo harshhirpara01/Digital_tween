@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ title or "Digital Tween" }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/app.css" />
+  {% block head %}{% endblock %}
+</head>
+<body class="dt-body">
+  <div class="dt-bg-grid"></div>
+  <div class="dt-bg-glow"></div>
+  <div class="dt-bg-glow dt-bg-glow-2"></div>
+  <div class="dt-scanlines" aria-hidden="true"></div>
+  <header class="dt-header">
+    <a href="/home" class="dt-brand">
+      <span class="dt-brand-mark"></span>
+      <span class="dt-brand-text">Digital Tween</span>
+      <span class="dt-brand-tag">Digi Teen</span>
+    </a>
+    <nav class="dt-nav">
+      {% block nav %}
+      <a href="/login" class="dt-nav-link">Login</a>
+      <a href="/register" class="dt-nav-link dt-nav-cta">Register</a>
+      {% endblock %}
+    </nav>
+  </header>
+  <main class="dt-main">
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="dt-footer">
+    <span>Digital Tween · Digi Teen — behavior intelligence companion</span>
+  </footer>
+  <div id="dt-toast" class="dt-toast" hidden></div>
+  <script src="/static/js/app.js"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

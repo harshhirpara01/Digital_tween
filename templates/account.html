@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block nav %}
+<a href="/home" class="dt-nav-link">Home</a>
+<a href="/logs" class="dt-nav-link">Logs</a>
+<a href="/account" class="dt-nav-link">Account</a>
+<button type="button" class="dt-nav-link dt-nav-btn" id="logoutBtn">Logout</button>
+{% endblock %}
+{% block content %}
+<section class="dt-account-head">
+  <h1 class="dt-h1">Your account</h1>
+  <p class="dt-sub">Update how we address you and keep your password secure.</p>
+</section>
+
+<section class="dt-split dt-account-split">
+  <div class="dt-panel">
+    <h2 class="dt-h2">Profile</h2>
+    <p class="dt-muted dt-small">Email is your login ID and cannot be changed here.</p>
+    <form id="profileForm" class="dt-form">
+      <label class="dt-label">Email
+        <input type="email" id="acctEmail" class="dt-input" readonly disabled />
+      </label>
+      <label class="dt-label">Full name
+        <input type="text" name="full_name" id="acctName" class="dt-input" required maxlength="200" autocomplete="name" />
+      </label>
+      {% include "partials/profession_select.html" %}
+      <button type="submit" class="dt-btn dt-btn-primary">Save profile</button>
+    </form>
+  </div>
+
+  <div class="dt-panel">
+    <h2 class="dt-h2">Security</h2>
+    <p class="dt-muted dt-small">Use a strong password you do not reuse on other sites.</p>
+    <form id="pwdForm" class="dt-form">
+      <label class="dt-label">Current password
+        <input type="password" name="current_password" class="dt-input" required autocomplete="current-password" />
+      </label>
+      <label class="dt-label">New password
+        <input type="password" name="new_password" id="newPwd" class="dt-input" required minlength="8" autocomplete="new-password" />
+      </label>
+      <label class="dt-label">Confirm new password
+        <input type="password" name="confirm_password" class="dt-input" required minlength="8" autocomplete="new-password" />
+      </label>
+      <button type="submit" class="dt-btn dt-btn-secondary">Change password</button>
+    </form>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/profession.js"></script>
+<script>
+(function () {
+  if (!DT.requireAuth()) return;
+
+  document.getElementById('logoutBtn').addEventListener('click', () => {
+    DT.clearToken();
+    window.location.href = '/login';
+  });
+
+  DTProfession.wire('professionSelect', 'professionOtherWrap', 'professionOther', false);
+
+  async function loadProfile() {
+    const res = await fetch('/account/me', { headers: DT.authHeaders() });
+    const json = await res.json();
+    if (json.status !== 'success' || !json.data) {
+      DT.toast(json.message || 'Could not load profile', 'err');
+      return;
+    }
+    const d = json.data;
+    document.getElementById('acctEmail').value = d.email || '';
+    document.getElementById('acctName').value = d.full_name || '';
+    DTProfession.setValue('professionSelect', 'professionOther', d.profession || '');
+    const sel = document.getElementById('professionSelect');
+    if (sel && sel.value === '') {
+      sel.selectedIndex = 0;
+    }
+  }
+
+  document.getElementById('profileForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const prof = DTProfession.getValue('professionSelect', 'professionOther');
+    if (!prof) {
+      DT.toast('Please choose or describe your profession.', 'err');
+      return;
+    }
+    const body = {
+      full_name: document.getElementById('acctName').value.trim(),
+      profession: prof,
+    };
+    const res = await fetch('/account/profile', {
+      method: 'PATCH',
+      headers: DT.authHeaders(),
+      body: JSON.stringify(body),
+    });
+    const json = await res.json();
+    if (json.status === 'success') {
+      DT.toast('Profile saved', 'ok');
+    } else {
+      DT.toast(json.message || 'Save failed', 'err');
+    }
+  });
+
+  document.getElementById('pwdForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const body = {
+      current_password: fd.get('current_password'),
+      new_password: fd.get('new_password'),
+      confirm_password: fd.get('confirm_password'),
+    };
+    if (body.new_password !== body.confirm_password) {
+      DT.toast('New password and confirmation do not match.', 'err');
+      return;
+    }
+    if (String(body.new_password).length < 8) {
+      DT.toast('New password must be at least 8 characters.', 'err');
+      return;
+    }
+    const res = await fetch('/account/change-password', {
+      method: 'POST',
+      headers: DT.authHeaders(),
+      body: JSON.stringify(body),
+    });
+    const json = await res.json();
+    if (json.status === 'success') {
+      DT.toast(json.message || 'Password updated', 'ok');
+      e.target.reset();
+    } else {
+      DT.toast(json.message || 'Could not change password', 'err');
+    }
+  });
+
+  loadProfile();
+})();
+</script>
+{% endblock %}

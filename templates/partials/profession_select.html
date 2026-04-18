@@ -1,0 +1,23 @@
+{# professionSelect + professionOtherWrap + professionOther — validate in JS #}
+<label class="dt-label">Role / profession
+  <select id="professionSelect" class="dt-input">
+    <option value="" disabled selected>Choose your role…</option>
+    <option value="Student">Student</option>
+    <option value="Software developer / IT">Software developer / IT</option>
+    <option value="Engineer">Engineer</option>
+    <option value="Teacher / Educator">Teacher / Educator</option>
+    <option value="Healthcare professional">Healthcare professional</option>
+    <option value="Designer / Creative">Designer / Creative</option>
+    <option value="Business / Management">Business / Management</option>
+    <option value="Researcher">Researcher</option>
+    <option value="Freelancer">Freelancer</option>
+    <option value="Homemaker">Homemaker</option>
+    <option value="Retired">Retired</option>
+    <option value="Looking for opportunity">Looking for opportunity</option>
+    <option value="__other__">Other — I’ll describe below</option>
+  </select>
+</label>
+<label class="dt-label" id="professionOtherWrap" hidden>
+  Describe your role
+  <input type="text" id="professionOther" class="dt-input" maxlength="200" placeholder="e.g. Pharmacy intern, content writer…" autocomplete="organization-title" />
+</label>

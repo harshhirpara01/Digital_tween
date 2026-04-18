@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block nav %}
+<a href="/login" class="dt-nav-link">Login</a>
+{% endblock %}
+{% block content %}
+<section class="dt-panel dt-panel-narrow">
+  <h1 class="dt-h1">Join Digital Tween</h1>
+  <p class="dt-sub">Register, verify OTP, then login.</p>
+
+  <form id="regForm" class="dt-form">
+    <div id="regStep1">
+      <label class="dt-label">Full name
+        <input type="text" name="full_name" class="dt-input" required />
+      </label>
+      <label class="dt-label">Email
+        <input type="email" name="email" id="regEmail" class="dt-input" required autocomplete="email" />
+      </label>
+      <label class="dt-label">Password
+        <input type="password" name="password" class="dt-input" required autocomplete="new-password" />
+      </label>
+      <label class="dt-label">Age
+        <input type="number" name="age" class="dt-input" min="1" max="120" required />
+      </label>
+      {% include "partials/profession_select.html" %}
+      <button type="submit" class="dt-btn dt-btn-primary">Send OTP</button>
+    </div>
+    <div id="regStep2" hidden>
+      <p class="dt-muted">We sent a <strong>verification code</strong> to your email (check spam too). Enter it below.</p>
+      <label class="dt-label">OTP
+        <input type="text" name="otp" class="dt-input" inputmode="numeric" autocomplete="one-time-code" />
+      </label>
+      <button type="button" id="verifyBtn" class="dt-btn dt-btn-primary">Verify &amp; finish</button>
+      <button type="button" id="backBtn" class="dt-btn dt-btn-ghost">Back</button>
+    </div>
+  </form>
+  <p class="dt-muted"><a href="/login">Already have an account?</a></p>
+</section>
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/profession.js"></script>
+<script>
+DTProfession.wire('professionSelect', 'professionOtherWrap', 'professionOther', true);
+
+const step1 = document.getElementById('regStep1');
+const step2 = document.getElementById('regStep2');
+let regEmail = '';
+
+document.getElementById('regForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const proffesion = DTProfession.getValue('professionSelect', 'professionOther');
+  if (!proffesion) {
+    DT.toast('Please choose or describe your profession.', 'err');
+    return;
+  }
+  const body = {
+    full_name: fd.get('full_name'),
+    email: fd.get('email'),
+    password: fd.get('password'),
+    age: parseInt(fd.get('age'), 10),
+    proffesion,
+  };
+  const res = await fetch('/User_Register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const json = await res.json();
+  if (json.status === 'success') {
+    regEmail = body.email;
+    DT.toast('Check your inbox for the verification code', 'ok');
+    step1.hidden = true;
+    step2.hidden = false;
+  } else {
+    DT.toast(json.message || 'Register failed', 'err');
+  }
+});
+
+document.getElementById('verifyBtn').addEventListener('click', async () => {
+  const otp = document.querySelector('input[name="otp"]').value;
+  const res = await fetch('/verify_register_otp', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: regEmail, otp }),
+  });
+  const json = await res.json();
+  if (json.status === 'success') {
+    DT.toast('Verified — you can login now', 'ok');
+    setTimeout(() => { window.location.href = '/login'; }, 500);
+  } else {
+    DT.toast(json.message || 'OTP verify failed', 'err');
+  }
+});
+
+document.getElementById('backBtn').addEventListener('click', () => {
+  step2.hidden = true;
+  step1.hidden = false;
+});
+</script>
+{% endblock %}
