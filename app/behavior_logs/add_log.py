@@ -10,7 +10,7 @@ from fastapi.encoders import jsonable_encoder
 
 @behavior_log.post("/Behavior-log-add")
 def log_add(formdata : add_log,
-        # current_user=Depends(get_current_user),
+        current_user=Depends(get_current_user),
         cursor=Depends(get_db_cursor)
 ):
     try:
@@ -20,8 +20,8 @@ def log_add(formdata : add_log,
         cursor.execute("CALL behavior_log(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s   )", (
             'log-insert',
             0,
-            # current_user["id"],
-            formdata.user_id,
+            current_user["id"],
+            # formdata.user_id,
             formdata.log_date,
             formdata.log_hour,
             formdata.activity,

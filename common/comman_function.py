@@ -1015,19 +1015,6 @@ def validate_password(password):
 #         return False, f"Missing required header: {e}"
 
 
-def err_send_telegram(msg):
-    url = "https://errorbot.niqox.com/sendErr"
-    error_formate = {
-        "error": msg,
-        "time": str(datetime.datetime.now()),
-        "project_name": "omnes"
-    }
-    data = {
-        "msg": json.dumps(error_formate),
-        "project": "Admin_omnes_py_API"
-    }
-    response = requests.post(url, json=data)
-    return response.json()  # Optional: Return response for debuggin
 
 
 import pandas as pd
@@ -1071,6 +1058,7 @@ def train_model(data, user_id):
     # Train
     model = RandomForestClassifier()
     model.fit(X, y)
+    columns = X.columns.tolist()
 
     # Save
     import os, joblib
@@ -1079,5 +1067,6 @@ def train_model(data, user_id):
     joblib.dump(model, f"app/ml/models/model_{user_id}.pkl")
     joblib.dump(activity_encoder, f"app/ml/models/activity_encoder_{user_id}.pkl")
     joblib.dump(mood_encoder, f"app/ml/models/mood_encoder_{user_id}.pkl")
+    joblib.dump(columns, f"app/ml/models/columns_{user_id}.pkl")
 
     return True

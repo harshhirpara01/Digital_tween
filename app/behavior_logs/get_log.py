@@ -10,8 +10,8 @@ from app.behavior_logs.forms.get_log import get_log
 from fastapi.encoders import jsonable_encoder
 
 @behavior_log.get("/Behavior-log-get")
-def log_add(user_id  :int ,
-        # current_user=Depends(get_current_user),
+def log_add(
+        current_user=Depends(get_current_user),
         cursor=Depends(get_db_cursor)
 ):
     try:
@@ -20,8 +20,7 @@ def log_add(user_id  :int ,
         cursor.execute("CALL behavior_log(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s   )", (
             'log-get',
             0,
-            # current_user["id"],
-            user_id,
+            current_user["id"],
             None,
             0,
             '',

@@ -10,8 +10,9 @@ from fastapi.encoders import jsonable_encoder
 
 @user.post("/User_Register")
 def user_register(
-        # current_user=Depends(get_current_user),
         formdata : userregidterotp,
+        current_user=Depends(get_current_user),
+
         cursor=Depends(get_db_cursor)
 ):
     try:

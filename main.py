@@ -11,7 +11,6 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from starlette import status
 from app.users.route import user
-from app.demo.route import demo
 from app.behavior_logs.route import behavior_log
 from app.model_train.route import model_train
 from common.responses import errorResponse
@@ -58,7 +57,7 @@ def create_app():
     app.logger = logger
 
     #
-    app.include_router(demo, tags=["DEMO"])
+
     app.include_router(user,tags=["USERS"])
     app.include_router(behavior_log,tags=["BEHAVIOR_LOGS"])
     app.include_router(model_train,tags=['Model_Train'])

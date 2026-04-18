@@ -10,8 +10,9 @@ from fastapi.encoders import jsonable_encoder
 
 @user.post("/login")
 def login(
-        # current_user=Depends(get_current_user),
-        formdata : loginform,
+            formdata : loginform,
+        current_user=Depends(get_current_user),
+
         cursor=Depends(get_db_cursor)
 ):
     try:

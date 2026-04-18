@@ -4,7 +4,6 @@ from pydantic import BaseModel
 
 
 class add_log(BaseModel):
-    user_id : int
     log_date : date
     log_hour : int
     activity : str

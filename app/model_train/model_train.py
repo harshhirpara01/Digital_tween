@@ -2,21 +2,22 @@ import json
 import traceback
 from fastapi import Depends
 from starlette import status
-from common.comman_function import resultset, train_model
+from common.comman_function import resultset, train_model, get_current_user
 from common.responses import errorResponse, successResponse, HEM_INTERNAL_SERVER_ERROR
 from shared.db import get_db_cursor
 from app.model_train.route import model_train
 
 @model_train.post("/ml/train/{user_id}")
-def train(user_id: int, cursor=Depends(get_db_cursor)):
+def train( cursor=Depends(get_db_cursor),
+          current_user=Depends(get_current_user),
+          ):
     try:
 
         # Step 1: Fetch dataset
         cursor.execute("CALL behavior_log(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s   )", (
             'log-get',
             0,
-            # current_user["id"],
-            user_id,
+            current_user["id"],
             None,
             0,
             '',
@@ -41,7 +42,7 @@ def train(user_id: int, cursor=Depends(get_db_cursor)):
 
 
         if not data or data[0].get('msgcode') != 'success':
-            return errorResponse(status.HTTP_400_BAD_REQUEST, "Dataset error")
+            return errorResponse(status.HTTP_400_BAD_REQUEST, data[0]['msg'])
 
         dataset = json.loads(data[0]['p_data'])
 

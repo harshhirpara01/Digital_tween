@@ -11,7 +11,7 @@ from fastapi.encoders import jsonable_encoder
 
 @behavior_log.post("/Behavior-log-delete")
 def delete_add(formdata : delete_log,
-        # current_user=Depends(get_current_user),
+        current_user=Depends(get_current_user),
         cursor=Depends(get_db_cursor)
 ):
     try:
@@ -20,7 +20,7 @@ def delete_add(formdata : delete_log,
         cursor.execute("CALL behavior_log(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s   )", (
             'log-delet',
             formdata.log_id,
-            # current_user["id"],
+            current_user["id"],
             0,
             None,
             0,
